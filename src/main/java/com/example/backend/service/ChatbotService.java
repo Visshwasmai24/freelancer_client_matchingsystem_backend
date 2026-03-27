@@ -9,7 +9,9 @@ import java.util.*;
 public class ChatbotService {
 
     private final String API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
-    private final String API_KEY = "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";
+    private final String API_KEY = System.getenv("HF_API_KEY") != null 
+    ? System.getenv("HF_API_KEY") 
+    : "";
 
     public String getResponse(String userMessage) {
         try {
