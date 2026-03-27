@@ -80,12 +80,7 @@
       <version>2.0.30</version>
     </dependency>
 
-    <!-- OCR (Tess4J) -->
-    <dependency>
-      <groupId>net.sourceforge.tess4j</groupId>
-      <artifactId>tess4j</artifactId>
-      <version>5.9.0</version>
-    </dependency>
+    
 
     <!-- Test -->
     <dependency>
