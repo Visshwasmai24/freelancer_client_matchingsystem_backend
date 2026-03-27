@@ -1,14 +1,10 @@
 package com.example.backend.service;
 
-import net.sourceforge.tess4j.Tesseract;
-import net.sourceforge.tess4j.TesseractException;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -49,44 +45,27 @@ public class ResumeParserService {
         }
     }
 
-    // Tesseract data paths to try (covers Windows, Mac, Linux, Render)
-    private static final String[] TESS_DATA_PATHS = {
-        "/usr/share/tesseract-ocr/4.00/tessdata",
-        "/usr/share/tesseract-ocr/5/tessdata",
-        "/usr/share/tessdata",
-        "/usr/local/share/tessdata",
-        "C:/Program Files/Tesseract-OCR/tessdata",
-        "C:/Program Files (x86)/Tesseract-OCR/tessdata"
-    };
-
     public Map<String, Object> extractSkillsWithInfo(MultipartFile file) throws IOException {
-        // Step 1: Try normal text extraction
         String text = extractTextFromPdf(file);
         String cleaned = text.trim().replaceAll("\\s+", " ");
         boolean isImageBased = cleaned.length() < 50;
 
-        // Step 2: If image-based, try OCR — but don't crash if Tesseract isn't installed
-        if (isImageBased) {
-            System.out.println("Image-based PDF detected. Attempting OCR...");
-            try {
-                String ocrText = extractTextWithOCR(file);
-                if (ocrText != null && !ocrText.isBlank()) {
-                    text = ocrText;
-                }
-            } catch (Exception e) {
-                System.err.println("OCR unavailable, skipping: " + e.getMessage());
-                // Continue with empty text — will return fallback skills below
-            }
-        }
-
         List<String> skills = matchSkills(text);
 
         Map<String, Object> result = new HashMap<>();
-        result.put("skills", skills.isEmpty() ? List.of("General Programming") : skills);
-        result.put("isImageBased", isImageBased);
-        result.put("message", skills.isEmpty()
-            ? "No recognizable skills found. Try updating your profile manually."
-            : "Skills extracted successfully!");
+
+        if (isImageBased) {
+            // Image-based PDF — can't process without too much memory on free tier
+            result.put("skills", List.of());
+            result.put("isImageBased", true);
+            result.put("message", "This appears to be a scanned/image PDF. Please upload a text-based PDF, or manually enter your skills in My Profile.");
+        } else {
+            result.put("skills", skills.isEmpty() ? List.of("General Programming") : skills);
+            result.put("isImageBased", false);
+            result.put("message", skills.isEmpty()
+                ? "No recognizable skills found. Try adding skills manually in My Profile."
+                : "Skills extracted successfully!");
+        }
 
         return result;
     }
@@ -101,41 +80,6 @@ public class ResumeParserService {
             PDFTextStripper stripper = new PDFTextStripper();
             return stripper.getText(document);
         }
-    }
-
-    private String extractTextWithOCR(MultipartFile file) throws IOException {
-        StringBuilder ocrText = new StringBuilder();
-        try (PDDocument document = PDDocument.load(file.getInputStream())) {
-            PDFRenderer renderer = new PDFRenderer(document);
-            Tesseract tesseract = new Tesseract();
-
-            // Find a valid tessdata path
-            String validPath = null;
-            for (String path : TESS_DATA_PATHS) {
-                if (new java.io.File(path).exists()) {
-                    validPath = path;
-                    break;
-                }
-            }
-            if (validPath == null) {
-                throw new RuntimeException("Tesseract not installed or tessdata not found.");
-            }
-
-            tesseract.setDatapath(validPath);
-            tesseract.setLanguage("eng");
-            tesseract.setPageSegMode(1);
-            tesseract.setOcrEngineMode(1);
-
-            for (int i = 0; i < document.getNumberOfPages(); i++) {
-                BufferedImage image = renderer.renderImageWithDPI(i, 300);
-                try {
-                    ocrText.append(tesseract.doOCR(image)).append("\n");
-                } catch (TesseractException e) {
-                    System.err.println("OCR failed on page " + i + ": " + e.getMessage());
-                }
-            }
-        }
-        return ocrText.toString();
     }
 
     private List<String> matchSkills(String text) {
